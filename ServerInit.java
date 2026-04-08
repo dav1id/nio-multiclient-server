@@ -30,52 +30,80 @@ import java.net.Socket;
 
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+public class ServerInit {
+    private boolean status = false;
+    ArrayList<Socket> clientsList = new ArrayList<>();
 
-enum ThreadNum{
-    ThreadOne{
-        public ThreadNum next(){
-            return ThreadNum.ThreadTwo;
-        }
-    },
-    ThreadTwo{
-        public ThreadNum next(){
-            return ThreadNum.ThreadThree;
-        }
-    },
-    ThreadThree{
-        public ThreadNum next(){
-            return ThreadNum.ThreadOne;
+
+    /**
+        Tries to decode the message (i.e., "client2 hello how are you"
+
+        @param message Message that is going to be sent to
+     **/
+    public void InputTask(String message, String client){
+    }
+
+    public void OutputTask(Socket client, Object lock, BlockingQueue<String> queue){ // Going to switch from lock to using a blocking queue next
+        try(PrintWriter out = new PrintWriter(client.getOutputStream())){
+            while(true){
+                try {
+                    synchronized (lock) {
+                        lock.wait();
+                    }
+
+                    out.println(message);
+                } catch(InterruptedException e){
+                    System.out.println(e.getMessage());
+                }
+            }
+        } catch(IOException e){
+            System.out.println(e.getMessage());
         }
     };
-
-    public abstract ThreadNum next();
-}
-
-
-public class ServerInit {
-    private Deque<String> messageQueue;
-    private boolean status;
-
-    public void decodeMessage(){
-
-    }
-
-    public void InputThread(){ //One thread that acts as input
-
-    }
-
-    public void setStatus(Boolean bool){
-        status = bool;
-    }
 
 
     public void run(){
         ArrayList<Socket> clientsList = new ArrayList<>();
-        status = false;
 
-        try{ // the client here has to be final, need a thread pool and worker threads for input and output (2 for input, 2 for output) aka this wont work
+
+        ExecutorService inputThreadPool = Executors.newFixedThreadPool(3);
+        ExecutorService outputThreadPool = Executors.newFixedThreadPool(3);
+
+        status = true;
+        try{
+            ServerSocket serverSocket = new ServerSocket(8080);
+            Socket client = null;
+
+            while(status){
+                client = serverSocket.accept();
+                Object lock = new Object(); // By creating an object lock and passing in the lock as a parameter, I can make it so that the output stream waits until it's notified by the input stream
+
+                inputThreadPool.submit( // Assuming I'm not using SocketChannels -> See if SocketChannels helps here
+                        () -> {
+                            System.out.println("Creating a new InputStream for the client");
+                        }
+                );
+
+                outputThreadPool.submit(
+                        () -> {
+                            System.out.println("Creating a new OutputStream for the client");
+                        }
+                );
+            }
+        } catch(IOException e){
+            System.out.println(e.getMessage());
+        }
+
+    }
+}
+
+/*
+        try{
             ServerSocket serverSocket = new ServerSocket(8080);
             Socket client = serverSocket.accept();
 
@@ -106,7 +134,4 @@ public class ServerInit {
             }
         } catch (IOException e){
             System.out.println(e.getMessage());
-        }
-
-    }
-}
+        } */

@@ -135,7 +135,7 @@ public class PacketTransceiver implements Runnable {
 
                 while (!(message = scanner.nextLine()).equals("close")) {
                     synchronized(this) {
-                        if (checkMessage(message)) { // To make sure tha
+                        if (checkMessage(message)) {
                             queueFunctions(message, "add");
                         } else {
                             System.out.println("Message cannot be sent to someone who is offline");
