@@ -55,55 +55,6 @@ public class PacketTransceiver implements Runnable {
         to find a solution to. The server just won't send the message if the client does not exist instead of making an
         exception.
      **/
-    public synchronized boolean messageFunc(String message, String command){
-        if (command.equals("setServerMessage")){
-            return setServerMessage(message); // Finish message func
-        } else{
-            return checkMessage(message);
-        }
-    }
-
-    /**
-        PacketReceiver forwards the message from the server. i.e., a message like:
-            "server -UpdateClients -remove client1 client2 client 3 -add client1 client2 client3"
-
-        Only message that the server can send so far is a notification to all clients to change the number of clients
-        when a client leaves or joins.
-     **/
-    public boolean setServerMessage(String serverMessage) {
-        String[] concat = serverMessage.split("-");
-
-        switch(concat[1]){
-            case "serverUpdateClients":
-                String[] addList = (concat[1]).split(" ");
-                String[] removeList = (concat[2]).split(" ");
-
-                for (String rmv : removeList)
-                    clientsList.remove((String) rmv);
-
-                for (String add : addList)
-                    clientsList.add((String) add);
-
-                return true;
-
-            default:
-                return false;
-        }
-    }
-
-    /**
-     Checks if the message aligns with the format. The message should contain a client that exists in the clientsList
-     **/
-    public boolean checkMessage(String message){
-        String[] messageSeperator = message.split(" ", 1);
-
-        boolean correctMessage = clientsList.contains((String) messageSeperator[0]);
-
-        if (correctMessage) return true;
-        return false;
-    }
-
-
 
     /**
      Waits for the thread to receive input from the server. Can receive input as:
@@ -119,18 +70,11 @@ public class PacketTransceiver implements Runnable {
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
                 Scanner scanner = new Scanner(System.in)
         ){
-
             while (status){
                 String message;
                 while((message = scanner.nextLine()) != null){
                     if (!(message.equals("close"))){
-                        synchronized(this) {
-                            if (checkMessage(message)) {
-                                out.println(message);
-                            } else{
-                                System.out.println("Message cannot be sent to someone who is offline");
-                            }
-                        }
+                        out.println(message);
                     } else {
                        status = false;
                        packetReceiver.setStatus(false);
