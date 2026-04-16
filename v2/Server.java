@@ -21,9 +21,13 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Server implements Runnable {
+
+/*
+    I pass in a reference of selectionKeySet, but selectionkeySet can change immediately after
+*/
+public class Server implements Runnable { // way to identify if a channel has disconnected
     private boolean status;
-    public int clientCounter;
+    public int clientCounter = 0;
 
     /**
         Receives user message, and forwards it to the appropiate client by creating a new specific task that omits
@@ -78,7 +82,6 @@ public class Server implements Runnable {
         ClientMeta receiverMeta = (ClientMeta) receiverKey.attachment();
         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
 
-        clientCounter = 0;
 
         try(SocketChannel receiver = (SocketChannel) receiverKey.channel()){
             String formattedMessage = String.format("%s: %s", senderMeta.getClientName(), message);
@@ -131,9 +134,12 @@ public class Server implements Runnable {
 
             serverSocketChannel.bind(new InetSocketAddress(8080));
             serverSocketChannel.configureBlocking(false);
-            serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+            SelectionKey serverKey = serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-            while(status){
+            serverKey.attach(new ClientMeta(serverSocketChannel.getLocalAddress(), clientCounter));
+            clientCounter++;
+
+            while(true){
                 selector.select();
 
                 Set<SelectionKey> selectionKeySet = selector.selectedKeys();
@@ -141,19 +147,33 @@ public class Server implements Runnable {
 
                 while(selectedKeyIterator.hasNext()){
                     var selectKey = selectedKeyIterator.next();
+
+                    //DEBUG
+                    ClientMeta meta = (ClientMeta) selectKey.attachment();
+                    System.out.println(meta.getClientName());
+                    System.out.println("___________________");
+
                     selectedKeyIterator.remove();
 
                     if (selectKey.isAcceptable()){
-                        try(SocketChannel client = serverSocketChannel.accept()){
+                        System.out.println("accepting client");
+
+                        try{
+                            SocketChannel client = serverSocketChannel.accept();
 
                             client.configureBlocking(false);
-                            client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_ACCEPT);
-                            System.out.println("New client has been connected!");
+                            SelectionKey clientKey = client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
+                            clientKey.attach(new ClientMeta(client.getLocalAddress(), clientCounter));
 
-                            selectKey.attach(new ClientMeta(client.getLocalAddress(), clientCounter));
+                            //DEBUG
+                            meta = (ClientMeta) clientKey.attachment();
+                            System.out.printf("%s has been connected! %n", meta.getClientName());
+                            clientCounter++;
+                        } catch(IOException e){
+                            System.out.println(e.getMessage());
                         }
-                        // Accept a new socket channel connection here
                     } else if (selectKey.isReadable()){
+                        System.out.println("There is a client right now trying to be read...");
                         consumerThreadPool.submit( () -> {
                             consumerTask(selectionKeySet, selectKey, producerThreadPool);
                             // Space for some future backlog

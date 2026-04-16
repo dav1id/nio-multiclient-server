@@ -8,7 +8,12 @@ public class ClientMeta {
 
     public ClientMeta(SocketAddress clientIdentifier, int clientIncrement){
         this.clientIdentifier = clientIdentifier;
-        this.clientName = String.format("Client%d", clientIncrement);
+
+        if (clientIncrement > 0){
+            this.clientName = String.format("Client%d", clientIncrement);
+        } else {
+            this.clientName = "Server";
+        }
     }
 
     public String getClientName(){
