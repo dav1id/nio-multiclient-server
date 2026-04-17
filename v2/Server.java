@@ -8,11 +8,11 @@ package v2;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.nio.Buffer;
+
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
+
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
@@ -21,62 +21,66 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-
-/*
-    I pass in a reference of selectionKeySet, but selectionkeySet can change immediately after
-*/
 public class Server implements Runnable { // way to identify if a channel has disconnected
     private boolean status;
     public int clientCounter = 0;
 
+
     /**
-        Receives user message, and forwards it to the appropiate client by creating a new specific task that omits
-        iterating over the selectionKeys, called producerTaskWithoutIteration.
+        Test method in trying to fix the bug of me passing a value that is changing from one thread to another thread.
+        I don't want to slow down the server's process of updating selectionKeys. So thinking of a way
+        for the threads in the threadpool to verify that their thread is up to date. But will go over this later after
+        I've implemented a way for the server to know of a disconnected channel.
+     **/
+    public synchronized void changeTaskSet(){
+
+    };
+
+    /**
+        Sends a message to the correct receiver by calling  producerTaskWithoutIteration once it's found the client.
      **/
     public boolean consumerTask(Set<SelectionKey>  selectionKeys, SelectionKey sender, ExecutorService producerThreadPool) {
         ByteBuffer buffer = ByteBuffer.allocate(1024);
 
-        try(SocketChannel client = (SocketChannel) sender.channel()){
-            int result;
-            do {
-                result = client.read(buffer);
+        try{
+            SocketChannel client = (SocketChannel) sender.channel();
+                int result;
+                do {
+                    result = client.read(buffer);
 
-                if (result == 0){
-                    throw new RuntimeException(); // Don't know what to do here
+                    if (result == 0){
+                        //DEBUG
+                        System.out.printf("Cannot read to bufer.... consumerTaask - %s", ( (ClientMeta) sender.attachment()).getClientName());
+                    }
+                } while(result != -1);
+
+                String message = new String(buffer.array(), 0, buffer.limit());
+                String[] messageArray = message.split(" ", 1);
+
+                for(SelectionKey receiver : selectionKeys){
+                    ClientMeta clientMeta = (ClientMeta) receiver.attachment();
+
+                    if (clientMeta.getClientName().equals(messageArray[0])){
+
+                        producerThreadPool.submit(
+                                () -> {
+                                    if (!(unicastProducerTask(sender, receiver, messageArray[1]))){
+                                        //DEBUG AND EVENTUAL FIX
+                                        System.out.println("Producer task could not do work...");
+                                    }
+                                }
+                        );
+                        return true;
+                    }
                 }
-            } while(result != -1);
-
-            String message = new String(buffer.array(), 0, buffer.limit());
-            String[] messageArray = message.split(" ", 1);
-
-            for(SelectionKey receiver : selectionKeys){
-                ClientMeta clientMeta = (ClientMeta) receiver.attachment();
-
-                if (clientMeta.getClientName().equals(messageArray[0])){
-
-                    producerThreadPool.submit(
-                            () -> {
-                                unicastProducerTask(sender, receiver, messageArray[1]); // add condition to check if message can be divided to 1 and 2  -> client2 hello how are you
-                            }
-                    );
-                    return true;
-                }
-            }
-
-        } catch(IOException e){
-            System.out.println(e.getMessage());
+            } catch(IOException e){
+                System.out.println(e.getMessage());
         }
-
         return false;
     }
 
     public boolean unicastProducerTask(SelectionKey senderKey, SelectionKey receiverKey, String message){
-        /*
-         A specific thread will both share the same ByteBuffer when I make threadLocal. For now, .flip() and .clear() might seem useless.
-         I was thinking of making it reference the ByteBuffer but I want it compartamentalised
-        */
         if (!(receiverKey.isWritable())) return false;
-
 
         ClientMeta senderMeta = (ClientMeta) senderKey.attachment();
         ClientMeta receiverMeta = (ClientMeta) receiverKey.attachment();
@@ -99,6 +103,7 @@ public class Server implements Runnable { // way to identify if a channel has di
             System.out.println(debug);
 
         } catch(IOException e){
+            // Need a specific exception here to write to the sender that the receiver does not exist. But a try and catch is expensive
             String errMessage = String.format("Error trying to send information from %s to %s", senderMeta.getClientName(), receiverMeta.getClientName());
             System.out.println(errMessage);
         }
@@ -151,7 +156,6 @@ public class Server implements Runnable { // way to identify if a channel has di
                     //DEBUG
                     ClientMeta meta = (ClientMeta) selectKey.attachment();
                     System.out.println(meta.getClientName());
-                    System.out.println("___________________");
 
                     selectedKeyIterator.remove();
 
@@ -175,7 +179,10 @@ public class Server implements Runnable { // way to identify if a channel has di
                     } else if (selectKey.isReadable()){
                         System.out.println("There is a client right now trying to be read...");
                         consumerThreadPool.submit( () -> {
-                            consumerTask(selectionKeySet, selectKey, producerThreadPool);
+                            if( !(consumerTask(selectionKeySet, selectKey, producerThreadPool)) ){
+                                System.out.println("message could not be sent");
+                            };
+
                             // Space for some future backlog
                         });
                     }

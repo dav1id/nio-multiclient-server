@@ -7,62 +7,75 @@ import java.nio.channels.SocketChannel;
 import java.util.Scanner;
 
 public class Client implements Runnable {
+    public final void clientReceiver(SocketChannel channel){
+        ByteBuffer writeBuffer = ByteBuffer.allocate(1024);
 
-    public void receiver(){
-        // Printing out the contents of the channel if it recieves information
-    }
+        try {
+            while(channel.isConnected()) {
+                if (channel.read(writeBuffer) != -1) {
+                    writeBuffer.flip();
 
-    public void byteBufferFunc(){
-        // Will use a synchronized lock to make both the receiver and sender functions share the same byte buffer
-    }
+                    byte[] bytes = writeBuffer.array();
+                    String message = new String(bytes, 0, writeBuffer.limit());
+                    System.out.println(message);
+                }
 
-    public void run(){
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-
-        try(SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(8080));
-            Scanner in = new Scanner(System.in)){
-
-            String message = in.nextLine();
-
-            byte[] messageBytes = message.getBytes();
-            buffer.put(messageBytes);
-            buffer.flip();
-
-            while(buffer.hasRemaining()){
-                socketChannel.write(buffer);
+                writeBuffer.clear();
+                writeBuffer.flip();
             }
 
-            buffer.clear();
+        } catch(IOException e){
+          System.out.println(e.getMessage());
+        };
 
-            /*
-            while(true){
-                String message;
-                if (in.hasNext() && (message = in.nextLine()) != null){
-                    buffer.clear();
+    }
 
+    public final void clientSender(SocketChannel channel){
+        ByteBuffer readBuffer = ByteBuffer.allocate(1024);
+
+        try(Scanner in = new Scanner(System.in)){
+            String message;
+            if (in.hasNext() && (message = in.nextLine()) != null){
+                String[] messageArray = message.split(" ", 1);
+
+                if ((messageArray.length > 2)){
                     byte[] messageBytes = message.getBytes();
-                    buffer.put(messageBytes);
-                    buffer.flip();
+
+                    readBuffer.put(messageBytes);
+                    readBuffer.flip();
 
                     //DEBUG
                     System.out.printf("Sent the message: %s...%n", message);
 
-                    while(buffer.hasRemaining()){
+                    while (readBuffer.hasRemaining())
+                        channel.write(readBuffer);
 
-                            Writes the buffer by 'streaming' from one channel to another. Since it's non-blocking,
-                            need to verify that buffer has completed the entire stream of bits before closing
+                    readBuffer.clear();
+                    readBuffer.flip();
 
-                        socketChannel.write(buffer);
-                    }
-
-                    System.out.println("Wrote the message to server channel...");
-
-                    buffer.clear();
-                    buffer.flip();
+                } else{
+                    System.out.println("Message cannot be sent to server...");
                 }
-            } */
+            }
+        } catch(IOException e){
+            System.out.println(e.getMessage());
+        }
+    }
 
-        }  catch(IOException e){
+    public void run(){
+        /*
+            Need to check the message and see if it aligns with standards. i.e., message can be divided into:
+            ClientName message. And message is not greater than 1024 bytes.
+        */
+        ByteBuffer readBuffer = ByteBuffer.allocate(1024);
+
+        try(final SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(8080))){
+            Thread clientThread = new Thread( () -> clientReceiver(socketChannel));
+            clientThread.start();
+
+            clientSender(socketChannel);
+
+        } catch(IOException e){
             System.out.println(e.getMessage());
         }
     }
