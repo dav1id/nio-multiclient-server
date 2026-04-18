@@ -36,9 +36,10 @@ public class Client implements Runnable {
         try(Scanner in = new Scanner(System.in)){
             String message;
             if (in.hasNext() && (message = in.nextLine()) != null){
-                String[] messageArray = message.split(" ", 1);
+                String[] messageArray = message.split(" ", 2);
+                System.out.println(messageArray[1]);
 
-                if ((messageArray.length > 2)){
+                if ((messageArray.length > 1)){
                     byte[] messageBytes = message.getBytes();
 
                     readBuffer.put(messageBytes);
@@ -63,12 +64,6 @@ public class Client implements Runnable {
     }
 
     public void run(){
-        /*
-            Need to check the message and see if it aligns with standards. i.e., message can be divided into:
-            ClientName message. And message is not greater than 1024 bytes.
-        */
-        ByteBuffer readBuffer = ByteBuffer.allocate(1024);
-
         try(final SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(8080))){
             Thread clientThread = new Thread( () -> clientReceiver(socketChannel));
             clientThread.start();

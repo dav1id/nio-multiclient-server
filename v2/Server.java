@@ -44,37 +44,37 @@ public class Server implements Runnable { // way to identify if a channel has di
 
         try{
             SocketChannel client = (SocketChannel) sender.channel();
-                int result;
-                do {
-                    result = client.read(buffer);
 
-                    if (result == 0){
-                        //DEBUG
-                        System.out.printf("Cannot read to bufer.... consumerTaask - %s", ( (ClientMeta) sender.attachment()).getClientName());
-                    }
-                } while(result != -1);
+            int result;
+            if ( (result = client.read(buffer)) == 0) return false;
 
-                String message = new String(buffer.array(), 0, buffer.limit());
-                String[] messageArray = message.split(" ", 1);
+            if (result == -1){
+                System.out.println("Cannot read bytes since the remote channel has been closed...");
+                return false;
+            }
+            buffer.flip();
 
-                for(SelectionKey receiver : selectionKeys){
-                    ClientMeta clientMeta = (ClientMeta) receiver.attachment();
+            String message = new String(buffer.array(), 0, buffer.limit());
+            String[] messageArray = message.split(" ", 2);
 
-                    if (clientMeta.getClientName().equals(messageArray[0])){
+            for (SelectionKey receiver : selectionKeys) {
+                ClientMeta clientMeta = (ClientMeta) receiver.attachment();
 
-                        producerThreadPool.submit(
-                                () -> {
-                                    if (!(unicastProducerTask(sender, receiver, messageArray[1]))){
-                                        //DEBUG AND EVENTUAL FIX
-                                        System.out.println("Producer task could not do work...");
-                                    }
+                if (clientMeta.getClientName().equals(messageArray[0])) {
+
+                    producerThreadPool.submit(
+                            () -> {
+                                if (!(unicastProducerTask(sender, receiver, messageArray[1]))) {
+                                    //DEBUG AND EVENTUAL FIX
+                                    System.out.println("Producer task could not do work...");
                                 }
-                        );
-                        return true;
-                    }
+                            }
+                    );
+                    return true;
                 }
-            } catch(IOException e){
-                System.out.println(e.getMessage());
+            }
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
         }
         return false;
     }
@@ -85,9 +85,10 @@ public class Server implements Runnable { // way to identify if a channel has di
         ClientMeta senderMeta = (ClientMeta) senderKey.attachment();
         ClientMeta receiverMeta = (ClientMeta) receiverKey.attachment();
         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+        
+        try{
+            SocketChannel receiver = (SocketChannel) receiverKey.channel();
 
-
-        try(SocketChannel receiver = (SocketChannel) receiverKey.channel()){
             String formattedMessage = String.format("%s: %s", senderMeta.getClientName(), message);
             byte[] buffer = formattedMessage.getBytes();
 
@@ -99,12 +100,12 @@ public class Server implements Runnable { // way to identify if a channel has di
             }
 
             //DEBUG
-            String debug = String.format("Finished printing %s.... to %s", message, receiverMeta.getClientName());
+            String debug = String.format("Finished printing %s.... to %s %n", message, receiverMeta.getClientName());
             System.out.println(debug);
 
         } catch(IOException e){
             // Need a specific exception here to write to the sender that the receiver does not exist. But a try and catch is expensive
-            String errMessage = String.format("Error trying to send information from %s to %s", senderMeta.getClientName(), receiverMeta.getClientName());
+            String errMessage = String.format("Error trying to send information from %s to %s %n", senderMeta.getClientName(), receiverMeta.getClientName());
             System.out.println(errMessage);
         }
 
@@ -155,19 +156,18 @@ public class Server implements Runnable { // way to identify if a channel has di
 
                     //DEBUG
                     ClientMeta meta = (ClientMeta) selectKey.attachment();
-                    System.out.println(meta.getClientName());
+                  //System.out.println(meta.getClientName());
 
                     selectedKeyIterator.remove();
 
                     if (selectKey.isAcceptable()){
-                        System.out.println("accepting client");
-
                         try{
                             SocketChannel client = serverSocketChannel.accept();
 
                             client.configureBlocking(false);
                             SelectionKey clientKey = client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
                             clientKey.attach(new ClientMeta(client.getLocalAddress(), clientCounter));
+
 
                             //DEBUG
                             meta = (ClientMeta) clientKey.attachment();
@@ -177,11 +177,25 @@ public class Server implements Runnable { // way to identify if a channel has di
                             System.out.println(e.getMessage());
                         }
                     } else if (selectKey.isReadable()){
-                        System.out.println("There is a client right now trying to be read...");
+                        System.out.printf("%s is requesting to be read....%n", meta.getClientName());
+
+                        //DEBUG START
+                        /*
+                        ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+                        SocketChannel channel = (SocketChannel) selectKey.channel();
+                        channel.configureBlocking(false);
+
+                        channel.read(byteBuffer);
+                        byteBuffer.flip();
+
+                        System.out.printf("Message %s %n", new String(byteBuffer.array(), 0, byteBuffer.limit()));
+                        */
+                        //DEBUG END
+
                         consumerThreadPool.submit( () -> {
                             if( !(consumerTask(selectionKeySet, selectKey, producerThreadPool)) ){
-                                System.out.println("message could not be sent");
-                            };
+                                System.out.println("ConsumerTask refused to send message to receiver...");
+                            }
 
                             // Space for some future backlog
                         });
