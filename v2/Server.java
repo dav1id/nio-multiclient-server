@@ -46,7 +46,10 @@ public class Server implements Runnable { // way to identify if a channel has di
             SocketChannel client = (SocketChannel) sender.channel();
 
             int result;
-            if ( (result = client.read(buffer)) == 0) return false;
+            if ( (result = client.read(buffer)) == 0){
+                System.out.println("Read zero bytes...");
+                return false;
+            }
 
             if (result == -1){
                 System.out.println("Cannot read bytes since the remote channel has been closed...");
@@ -85,7 +88,7 @@ public class Server implements Runnable { // way to identify if a channel has di
         ClientMeta senderMeta = (ClientMeta) senderKey.attachment();
         ClientMeta receiverMeta = (ClientMeta) receiverKey.attachment();
         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
-        
+
         try{
             SocketChannel receiver = (SocketChannel) receiverKey.channel();
 
@@ -194,7 +197,7 @@ public class Server implements Runnable { // way to identify if a channel has di
 
                         consumerThreadPool.submit( () -> {
                             if( !(consumerTask(selectionKeySet, selectKey, producerThreadPool)) ){
-                                System.out.println("ConsumerTask refused to send message to receiver...");
+                            //    System.out.println("ConsumerTask refused to send message to receiver...");
                             }
 
                             // Space for some future backlog
