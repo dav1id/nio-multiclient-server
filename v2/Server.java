@@ -16,6 +16,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -24,6 +25,8 @@ import java.util.concurrent.Executors;
 public class Server implements Runnable { // way to identify if a channel has disconnected
     private boolean status;
     public int clientCounter = 0;
+
+    private ArrayList<SelectionKey> registeredClientsList = new ArrayList<>();
 
 
     /**
@@ -39,60 +42,43 @@ public class Server implements Runnable { // way to identify if a channel has di
     /**
         Sends a message to the correct receiver by calling  producerTaskWithoutIteration once it's found the client.
      **/
-    public boolean consumerTask(Set<SelectionKey>  selectionKeys, SelectionKey sender, ExecutorService producerThreadPool) {
+    public void consumerTask(byte[] messageBytes, SelectionKey senderKey, ExecutorService producerThreadPool) {
         ByteBuffer buffer = ByteBuffer.allocate(1024);
 
-        try{
-            SocketChannel client = (SocketChannel) sender.channel();
+        String message = new String(messageBytes, 0, buffer.limit());
+        String[] messageArray = message.split(" ", 2);
 
-            int result;
-            if ( (result = client.read(buffer)) == 0){
-                System.out.println("Read zero bytes...");
-                return false;
-            }
+        String senderName =  ( (ClientMeta) senderKey.attachment() ).getClientName();
 
-            if (result == -1){
-                System.out.println("Cannot read bytes since the remote channel has been closed...");
-                return false;
-            }
-            buffer.flip();
-
-            String message = new String(buffer.array(), 0, buffer.limit());
-            String[] messageArray = message.split(" ", 2);
-
-            for (SelectionKey receiver : selectionKeys) {
+        if (!(message.equals("this close"))){
+            for (SelectionKey receiver : registeredClientsList) {
                 ClientMeta clientMeta = (ClientMeta) receiver.attachment();
 
                 if (clientMeta.getClientName().equals(messageArray[0])) {
 
                     producerThreadPool.submit(
                             () -> {
-                                if (!(unicastProducerTask(sender, receiver, messageArray[1]))) {
-                                    //DEBUG AND EVENTUAL FIX
+                                if (!(unicastProducerTask(senderName, receiver, messageArray[1])))
                                     System.out.println("Producer task could not do work...");
-                                }
                             }
                     );
-                    return true;
                 }
             }
-        } catch (IOException e) {
-            System.out.println(e.getMessage());
+        } else {
+            closeLocalChannel(senderKey);
         }
-        return false;
     }
 
-    public boolean unicastProducerTask(SelectionKey senderKey, SelectionKey receiverKey, String message){
+    public boolean unicastProducerTask(String senderName, SelectionKey receiverKey, String message){
         if (!(receiverKey.isWritable())) return false;
 
-        ClientMeta senderMeta = (ClientMeta) senderKey.attachment();
         ClientMeta receiverMeta = (ClientMeta) receiverKey.attachment();
         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
 
         try{
             SocketChannel receiver = (SocketChannel) receiverKey.channel();
 
-            String formattedMessage = String.format("%s: %s", senderMeta.getClientName(), message);
+            String formattedMessage = String.format("%s: %s", senderName, message);
             byte[] buffer = formattedMessage.getBytes();
 
             byteBuffer.put(buffer);
@@ -108,7 +94,7 @@ public class Server implements Runnable { // way to identify if a channel has di
 
         } catch(IOException e){
             // Need a specific exception here to write to the sender that the receiver does not exist. But a try and catch is expensive
-            String errMessage = String.format("Error trying to send information from %s to %s %n", senderMeta.getClientName(), receiverMeta.getClientName());
+            String errMessage = String.format("Error trying to send information from %s to %s %n", senderName, receiverMeta.getClientName());
             System.out.println(errMessage);
         }
 
@@ -130,6 +116,22 @@ public class Server implements Runnable { // way to identify if a channel has di
     */
     public boolean multicastProducerTask(){
         return false;
+    }
+
+    /**
+        Closes the local channel after the remote channel has been closed. The remote channel sends a specific
+        server message tht indicates that the channel should be closed. (Likely just going to be this close).
+
+        @param key Reference to the selection key that is going to be closed
+     **/
+    public void closeLocalChannel(SelectionKey key){
+        SocketChannel channel = (SocketChannel) key.channel();
+
+        try {
+            channel.close();
+        } catch(IOException e){
+            System.out.printf("Problem closing the %s. System message: %s",  ( (ClientMeta) key.attachment() ).getClientName(), e.getMessage());
+        }
     }
 
     public void run(){
@@ -157,9 +159,7 @@ public class Server implements Runnable { // way to identify if a channel has di
                 while(selectedKeyIterator.hasNext()){
                     var selectKey = selectedKeyIterator.next();
 
-                    //DEBUG
                     ClientMeta meta = (ClientMeta) selectKey.attachment();
-                  //System.out.println(meta.getClientName());
 
                     selectedKeyIterator.remove();
 
@@ -170,43 +170,52 @@ public class Server implements Runnable { // way to identify if a channel has di
                             client.configureBlocking(false);
                             SelectionKey clientKey = client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
                             clientKey.attach(new ClientMeta(client.getLocalAddress(), clientCounter));
-
-
-                            //DEBUG
+                            
+                            //DEBUG START
                             meta = (ClientMeta) clientKey.attachment();
                             System.out.printf("%s has been connected! %n", meta.getClientName());
+                            //DEBUG END
+
                             clientCounter++;
+                            registeredClientsList.add(clientKey);
                         } catch(IOException e){
                             System.out.println(e.getMessage());
                         }
                     } else if (selectKey.isReadable()){
                         System.out.printf("%s is requesting to be read....%n", meta.getClientName());
 
-                        //DEBUG START
                         /*
+                            isReadable() just tells me that the OS is trying to queue some bytes that it is recieving.
+                            reading it in a thread instead of immediately might mean the os has moved onto a different
+                            procedure -> hence why it gives me 0.
+
+                            call read() here and submit the worker task
+                        */
+
                         ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
                         SocketChannel channel = (SocketChannel) selectKey.channel();
                         channel.configureBlocking(false);
 
-                        channel.read(byteBuffer);
-                        byteBuffer.flip();
+                        int result = channel.read(byteBuffer);
+                        String senderName = meta.getClientName();
 
-                        System.out.printf("Message %s %n", new String(byteBuffer.array(), 0, byteBuffer.limit()));
-                        */
+                        //DEBUG START
+                        if (result == -1) {
+                            System.out.printf("Message from %s cannot be read as the remote channel is closed...", senderName);
+                            continue;
+                        } else if (result == 0) {
+                            System.out.printf("No bytes were read from %s...", senderName);
+                        }
                         //DEBUG END
 
-                        consumerThreadPool.submit( () -> {
-                            if( !(consumerTask(selectionKeySet, selectKey, producerThreadPool)) ){
-                            //    System.out.println("ConsumerTask refused to send message to receiver...");
-                            }
+                        byteBuffer.flip();
+                        byte[] messageBytes = byteBuffer.array();
 
-                            // Space for some future backlog
-                        });
+                        consumerThreadPool.submit(() -> consumerTask(messageBytes, selectKey, producerThreadPool));
                     }
                 }
             }
-
-        } catch(IOException e){
+        } catch (IOException e) {
             System.out.println(e.getMessage());
         }
     }

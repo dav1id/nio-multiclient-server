@@ -40,7 +40,7 @@ public class Client implements Runnable {
                     String[] messageArray = message.split(" ", 2);
                     System.out.println(messageArray[1]);
 
-                    if ((messageArray.length > 1)) {
+                    if ((messageArray.length > 2)) {
                         byte[] messageBytes = message.getBytes();
 
                         readBuffer.put(messageBytes);
