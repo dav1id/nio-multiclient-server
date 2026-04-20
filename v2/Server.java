@@ -24,34 +24,21 @@ import java.util.concurrent.Executors;
 
 public class Server implements Runnable { // way to identify if a channel has disconnected
     private boolean status;
-    public int clientCounter = 0;
+    private int clientCounter = 0;
 
-    private ArrayList<SelectionKey> registeredClientsList = new ArrayList<>();
-
-
-    /**
-        Test method in trying to fix the bug of me passing a value that is changing from one thread to another thread.
-        I don't want to slow down the server's process of updating selectionKeys. So thinking of a way
-        for the threads in the threadpool to verify that their thread is up to date. But will go over this later after
-        I've implemented a way for the server to know of a disconnected channel.
-     **/
-    public synchronized void changeTaskSet(){
-
-    };
+    private final ArrayList<SelectionKey> registeredSelectionKeys = new ArrayList<>();
 
     /**
         Sends a message to the correct receiver by calling  producerTaskWithoutIteration once it's found the client.
      **/
     public void consumerTask(byte[] messageBytes, SelectionKey senderKey, ExecutorService producerThreadPool) {
-        ByteBuffer buffer = ByteBuffer.allocate(1024);
-
-        String message = new String(messageBytes, 0, buffer.limit());
+        String message = new String(messageBytes, 0, messageBytes.length);
         String[] messageArray = message.split(" ", 2);
 
         String senderName =  ( (ClientMeta) senderKey.attachment() ).getClientName();
 
         if (!(message.equals("this close"))){
-            for (SelectionKey receiver : registeredClientsList) {
+            for (SelectionKey receiver : registeredSelectionKeys) {
                 ClientMeta clientMeta = (ClientMeta) receiver.attachment();
 
                 if (clientMeta.getClientName().equals(messageArray[0])) {
@@ -132,6 +119,13 @@ public class Server implements Runnable { // way to identify if a channel has di
         } catch(IOException e){
             System.out.printf("Problem closing the %s. System message: %s",  ( (ClientMeta) key.attachment() ).getClientName(), e.getMessage());
         }
+
+        // Assuming that the first index is going to be the first client that was added to the server
+        for(int i = 0; i < registeredSelectionKeys.size(); i++){
+            var selectionKey = registeredSelectionKeys.get(i);
+            ClientMeta meta = ((ClientMeta) selectionKey.attachment());
+            meta.setClientName(String.format("Client%d", i));
+        }
     }
 
     public void run(){
@@ -170,20 +164,18 @@ public class Server implements Runnable { // way to identify if a channel has di
                             client.configureBlocking(false);
                             SelectionKey clientKey = client.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE);
                             clientKey.attach(new ClientMeta(client.getLocalAddress(), clientCounter));
-                            
+
                             //DEBUG START
                             meta = (ClientMeta) clientKey.attachment();
                             System.out.printf("%s has been connected! %n", meta.getClientName());
                             //DEBUG END
 
                             clientCounter++;
-                            registeredClientsList.add(clientKey);
+                            registeredSelectionKeys.add(clientKey);
                         } catch(IOException e){
                             System.out.println(e.getMessage());
                         }
                     } else if (selectKey.isReadable()){
-                        System.out.printf("%s is requesting to be read....%n", meta.getClientName());
-
                         /*
                             isReadable() just tells me that the OS is trying to queue some bytes that it is recieving.
                             reading it in a thread instead of immediately might mean the os has moved onto a different
@@ -209,7 +201,8 @@ public class Server implements Runnable { // way to identify if a channel has di
                         //DEBUG END
 
                         byteBuffer.flip();
-                        byte[] messageBytes = byteBuffer.array();
+                        byte[] messageBytes = new byte[byteBuffer.remaining()];
+                        byteBuffer.get(messageBytes);
 
                         consumerThreadPool.submit(() -> consumerTask(messageBytes, selectKey, producerThreadPool));
                     }

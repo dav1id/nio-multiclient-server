@@ -11,8 +11,8 @@ public class Client implements Runnable {
         ByteBuffer writeBuffer = ByteBuffer.allocate(1024);
 
         try {
-            while(channel.isConnected()) {
-                if (channel.read(writeBuffer) != -1) {
+            while(channel.isConnected()){
+                if (!(channel.read(writeBuffer) == 0)){
                     writeBuffer.flip();
 
                     byte[] bytes = writeBuffer.array();
@@ -23,7 +23,6 @@ public class Client implements Runnable {
                 writeBuffer.clear();
                 writeBuffer.flip();
             }
-
         } catch(IOException e){
           System.out.println(e.getMessage());
         };
@@ -37,24 +36,26 @@ public class Client implements Runnable {
             while(channel.isConnected()) {
                 String message;
                 if (in.hasNext() && (message = in.nextLine()) != null) {
-                    String[] messageArray = message.split(" ", 2);
-                    System.out.println(messageArray[1]);
+                    readBuffer.clear();
 
-                    if ((messageArray.length > 2)) {
+                    String[] messageArray = message.split(" ", 2);
+                    if(message.equals("this close")) break;
+
+                    if ((messageArray.length >= 2)) {
                         byte[] messageBytes = message.getBytes();
 
                         readBuffer.put(messageBytes);
                         readBuffer.flip();
 
-                        //DEBUG
+                        //DEBUG START
                         System.out.printf("Sent the message: %s...%n", message);
+                        //DEBUG END
 
                         while (readBuffer.hasRemaining())
                             channel.write(readBuffer);
 
                         readBuffer.clear();
                         readBuffer.flip();
-
                     } else {
                         System.out.println("Message cannot be sent to server...");
                     }
