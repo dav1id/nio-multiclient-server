@@ -28,8 +28,7 @@ public class Client implements Runnable {
             }
         } catch(IOException e){
           System.out.println(e.getMessage());
-        };
-
+        }
     }
 
     public final void clientSender(SocketChannel channel){
@@ -44,7 +43,7 @@ public class Client implements Runnable {
                     String[] messageArray = message.split(" ", 2);
                     if(message.equals("this close")) break;
 
-                    System.out.printf("Me -> %s: %s %n", messageArray[0], messageArray[1]);
+                    //System.out.printf("Me -> %s: %s %n", messageArray[0], messageArray[1]);
 
                     if ((messageArray.length >= 2)) {
                         byte[] messageBytes = message.getBytes();

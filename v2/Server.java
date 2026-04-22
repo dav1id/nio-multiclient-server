@@ -22,16 +22,30 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Server implements Runnable { // way to identify if a channel has disconnected
-    private int clientCounter = 0;
-
+public class Server implements Runnable {
     private final ArrayList<SelectionKey> registeredSelectionKeys = new ArrayList<>();
+
+    private final int allocatedBytes;
+    private final int numThreads;
+
+    private final ThreadLocal<ByteBuffer> threadLocalBuffer;
+
+    /**
+        Creates an ArrayList of the ByteBuffers for the producer and consumer tasks. Each thread is assigned a number
+        that correlates to an index in the ByteBuffers array list using a ThreadLocal object.
+     **/
+    public Server(int numberOfThreads, int allocatedBytes){
+        numThreads = numberOfThreads;
+        this.allocatedBytes = allocatedBytes;
+
+        threadLocalBuffer = ThreadLocal.withInitial( () -> ByteBuffer.allocate(allocatedBytes));
+    }
 
     /**
         Sends a message to the correct receiver by calling  producerTaskWithoutIteration once it's found the client.
      **/
     public void consumerTask(byte[] messageBytes, SelectionKey senderKey, ExecutorService producerThreadPool) {
-        String message = new String(messageBytes, 0, messageBytes.length);
+        String message = new String(messageBytes);
         String[] messageArray = message.split(" ", 2);
 
         String senderName =  ( (ClientMeta) senderKey.attachment() ).getClientName();
@@ -41,7 +55,6 @@ public class Server implements Runnable { // way to identify if a channel has di
                 ClientMeta clientMeta = (ClientMeta) receiver.attachment();
 
                 if (clientMeta.getClientName().equals(messageArray[0])) {
-
                     producerThreadPool.submit(
                             () -> {
                                 if (!(unicastProducerTask(senderName, receiver, messageArray[1])))
@@ -59,7 +72,7 @@ public class Server implements Runnable { // way to identify if a channel has di
         if (!(receiverKey.isWritable())) return false;
 
         ClientMeta receiverMeta = (ClientMeta) receiverKey.attachment();
-        ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+        ByteBuffer byteBuffer = threadLocalBuffer.get();
 
         try{
             SocketChannel receiver = (SocketChannel) receiverKey.channel();
@@ -78,7 +91,7 @@ public class Server implements Runnable { // way to identify if a channel has di
 
             //DEBUG
             String debug = String.format("Finished printing %s.... to %s %n", message, receiverMeta.getClientName());
-          //  System.out.println(debug);
+          //System.out.println(debug);
 
         } catch(IOException e){
             // Need a specific exception here to write to the sender that the receiver does not exist. But a try and catch is expensive
@@ -93,7 +106,6 @@ public class Server implements Runnable { // way to identify if a channel has di
         Future way to simulate broadcast from client to all, and from server to all. Server to all can be a way to change
         some aspects of the visual interface when I start using JavaFX.
     */
-
     public boolean broadcastProducerTask(Set<SelectionKey> selectionKeys, SelectionKey sender, String broadcastMessage){
         return true;
     }
@@ -113,7 +125,7 @@ public class Server implements Runnable { // way to identify if a channel has di
         @param key Reference to the selection key that is going to be closed
      **/
     public void closeLocalChannel(SelectionKey key){
-        // Need to incorporate exiting out of client without using this close and still running this:
+        // Need to incorporate exiting out of client without using this close and still running this (Look into sys commands):
         SocketChannel channel = (SocketChannel) key.channel();
 
         try {
@@ -131,9 +143,10 @@ public class Server implements Runnable { // way to identify if a channel has di
     }
 
     public void run(){
+        int clientCounter = 0;
         try(
-                ExecutorService producerThreadPool = Executors.newFixedThreadPool(3);
-                ExecutorService consumerThreadPool = Executors.newFixedThreadPool(3);
+                ExecutorService producerThreadPool = Executors.newFixedThreadPool(numThreads);
+                ExecutorService consumerThreadPool = Executors.newFixedThreadPool(numThreads);
 
                 Selector selector = Selector.open();
                 ServerSocketChannel serverSocketChannel = ServerSocketChannel.open()){
@@ -176,16 +189,16 @@ public class Server implements Runnable { // way to identify if a channel has di
                         } catch(IOException e){
                             System.out.println(e.getMessage());
                         }
-                    } else if (selectKey.isReadable()){
+                    } else if (selectKey.isReadable()) {
                         /*
-                            isReadable() just tells me that the OS is trying to queue some bytes that it is recieving.
+                            isReadable() just tells me that the OS is trying to queue some bytes that it is receiving.
                             reading it in a thread instead of immediately might mean the os has moved onto a different
                             procedure -> hence why it gives me 0.
 
                             call read() here and submit the worker task
                         */
 
-                        ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+                        ByteBuffer byteBuffer = ByteBuffer.allocate(allocatedBytes);
                         SocketChannel channel = (SocketChannel) selectKey.channel();
                         channel.configureBlocking(false);
 
