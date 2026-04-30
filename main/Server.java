@@ -32,6 +32,10 @@ public class Server implements Runnable {
 
     private final ThreadLocal<ByteBuffer> threadLocalBuffer;
 
+    private enum ServerMessage{ // Adding as an enum for possible other commands that I want to be able to pro
+        serverCleanClients
+    }
+
     /**
         Creates an ArrayList of the ByteBuffers for the producer and consumer tasks. Each thread is assigned a number
         that correlates to an index in the ByteBuffers array list using a ThreadLocal object.
@@ -70,10 +74,6 @@ public class Server implements Runnable {
         }
     }
 
-
-    private enum ServerMessage{ // Adding as an enum for possible other commands that I want to be able to pro
-        serverCleanClients
-    }
     public void serverConsumerTask(ExecutorService producerThreadPool, ServerMessage command){
         String serverMessage;
         switch(command){
@@ -210,7 +210,7 @@ public class Server implements Runnable {
                             clientCounter++;
                             registeredSelectionKeys.add(clientKey);
                             registeredChannelNames.add(meta.getClientName());
-                            consumerThreadPool.submit(() -> serverConsumerTask(ServerMessage.serverCleanClients));
+                            consumerThreadPool.submit(() -> serverConsumerTask(producerThreadPool, ServerMessage.serverCleanClients));
 
                         } catch(IOException e){
                             System.out.println(e.getMessage());
