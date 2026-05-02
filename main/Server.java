@@ -9,7 +9,6 @@ package main;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 
-import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -50,7 +49,7 @@ public class Server implements Runnable {
     /**
         Sends a message to the correct receiver by calling  producerTaskWithoutIteration once it's found the client.
      **/
-    public void clientConsumerTask(byte[] messageBytes, SelectionKey senderKey, ExecutorService producerThreadPool) {
+    private void clientConsumerTask(byte[] messageBytes, SelectionKey senderKey, ExecutorService producerThreadPool) {
         String message = new String(messageBytes);
         String[] messageArray = message.split(" ", 2);
 
@@ -74,7 +73,7 @@ public class Server implements Runnable {
         }
     }
 
-    public void serverConsumerTask(ExecutorService producerThreadPool, ServerMessage command){
+    private void serverConsumerTask(ExecutorService producerThreadPool, ServerMessage command){
         String serverMessage;
         switch(command){
             case serverCleanClients:
@@ -88,7 +87,7 @@ public class Server implements Runnable {
         }
     }
 
-    public boolean unicastProducerTask(String senderName, SelectionKey receiverKey, String message){
+    private boolean unicastProducerTask(String senderName, SelectionKey receiverKey, String message){
         if (!(receiverKey.isWritable())) return false;
 
         ClientMeta receiverMeta = (ClientMeta) receiverKey.attachment();
@@ -97,7 +96,7 @@ public class Server implements Runnable {
         try{
             SocketChannel receiver = (SocketChannel) receiverKey.channel();
 
-            String formattedMessage = String.format("%s: %s", senderName, message);
+            String formattedMessage = String.format("%s %s", senderName, message);
             byte[] buffer = formattedMessage.getBytes();
 
             byteBuffer.put(buffer);
@@ -126,7 +125,7 @@ public class Server implements Runnable {
         Future way to simulate broadcast from client to all, and from server to all. Server to all can be a way to change
         some aspects of the visual interface when I start using JavaFX.
     */
-    public boolean broadcastProducerTask(Set<SelectionKey> selectionKeys, SelectionKey sender, String broadcastMessage){
+    private boolean broadcastProducerTask(Set<SelectionKey> selectionKeys, SelectionKey sender, String broadcastMessage){
         return true;
     }
 
@@ -134,7 +133,7 @@ public class Server implements Runnable {
         Future way to simulate sending messages to multiple clients from one client. Will probably happen after
         I create the group chat using JavaFX
     */
-    public boolean multicastProducerTask(){
+    private boolean multicastProducerTask(){
         return false;
     }
 

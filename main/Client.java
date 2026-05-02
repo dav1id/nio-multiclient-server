@@ -5,7 +5,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Scanner;
 
 public class Client implements Runnable {
@@ -14,20 +14,21 @@ public class Client implements Runnable {
     private final String receiverName = "receiver-thread";
 
     private final String[] threadPriority = {senderName, receiverName}; // set a thread priority for the receiver and not sender
-    private synchronized boolean interactClientsList(String threadName, String message){
-        switch(threadName){
-            case senderName:
-                String[] temp = message.split(" ");
-                temp[0] = temp[0].replace("[", "");
-                temp[temp.length - 1] = temp[temp.length - 1].replace("]", "");
 
-                clientsList.clear();
-                clientsList.addAll(List.of(temp));
-                break;
-            case receiverName:
-                return clientsList.contains(message);
+
+    /**
+        The sender and receiver threads both call interactClientsList when it's trying to send a message. This makes sure that
+        both the sender and receiver are working with an updated clients list. The receiver will be the only one enabling
+        updateList to be true if the server sends it a message.
+     **/
+    private synchronized void interactClientsList(Boolean updateList, String message){
+        if (updateList){ // Assuming that the thing calling updateList is going to be the receiver parsing a server message
+            String[] temp = message.split(",");
+            temp[0] = temp[0].replace("[", "");
+            temp[temp.length -1] = temp[temp.length -1].replace("]", "");
+
+            clientsList.addAll(Arrays.asList(temp));
         }
-        return false;
     }
 
     /*
@@ -50,13 +51,14 @@ public class Client implements Runnable {
                     byte[] bytes = readBuffer.array();
                     String message = new String(bytes, 0, readBuffer.limit());
                     String[] messageSplit = message.split(" ", 2);
+                    Arrays.fill(messageSplit, message.replace(" ", ""));
 
-                    if (messageSplit[0].equals("server"))
-                        Thread.startVirtualThread( () -> interactClientsList(threadName, messageSplit[1]));
-
-                    System.out.printf("%s -> Me: %s %n" , messageSplit[0], messageSplit[1]);
+                    if (messageSplit[0].equals("server")) {
+                        Thread.startVirtualThread(() -> interactClientsList(true, messageSplit[1]));
+                    }else {
+                        System.out.printf("%s -> Me: %s %n" , messageSplit[0], messageSplit[1]);
+                    }
                 }
-
                 readBuffer.clear();
             }
         } catch(IOException e){
@@ -75,11 +77,17 @@ public class Client implements Runnable {
                     writeBuffer.clear();
 
                     String[] messageArray = message.split(" ", 2);
+
                     if(message.equals("this close")) break;
 
-                    //System.out.printf("Me -> %s: %s %n", messageArray[0], messageArray[1]);
+                    interactClientsList(false, null);
 
-                    if ((messageArray.length >= 2) && interactClientsList(senderName, messageArray[1])) {
+                    String cl = "Client2";
+
+                    System.out.println(clientsList.contains("Client2"));
+                    if ((messageArray.length >= 2) && clientsList.contains(messageArray[0])) {
+                        System.out.printf("Me -> %s: %s %n", messageArray[0], messageArray[1]);
+
                         byte[] messageBytes = message.getBytes();
 
                         writeBuffer.put(messageBytes);
@@ -90,6 +98,7 @@ public class Client implements Runnable {
 
                         writeBuffer.clear();
                         writeBuffer.flip();
+
                     } else {
                         System.out.println("Message cannot be sent to server...");
                     }
