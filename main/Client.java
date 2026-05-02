@@ -15,7 +15,6 @@ public class Client implements Runnable {
 
     private final String[] threadPriority = {senderName, receiverName}; // set a thread priority for the receiver and not sender
 
-
     /**
         The sender and receiver threads both call interactClientsList when it's trying to send a message. This makes sure that
         both the sender and receiver are working with an updated clients list. The receiver will be the only one enabling
@@ -28,6 +27,7 @@ public class Client implements Runnable {
             temp[temp.length -1] = temp[temp.length -1].replace("]", "");
 
             clientsList.addAll(Arrays.asList(temp));
+            clientsList.replaceAll( client -> client.replace(" ", ""));
         }
     }
 
@@ -36,7 +36,7 @@ public class Client implements Runnable {
         serverMessage that was sent to remove/add
    */
 
-    public final void clientReceiver(SocketChannel channel){
+    private void clientReceiver(SocketChannel channel){
         ByteBuffer readBuffer = ByteBuffer.allocate(1024);
         String threadName = Thread.currentThread().getName();
 
@@ -51,7 +51,7 @@ public class Client implements Runnable {
                     byte[] bytes = readBuffer.array();
                     String message = new String(bytes, 0, readBuffer.limit());
                     String[] messageSplit = message.split(" ", 2);
-                    Arrays.fill(messageSplit, message.replace(" ", ""));
+                  //  Arrays.fill(messageSplit, message.replace(" ", ""));
 
                     if (messageSplit[0].equals("server")) {
                         Thread.startVirtualThread(() -> interactClientsList(true, messageSplit[1]));
@@ -66,7 +66,7 @@ public class Client implements Runnable {
         }
     }
 
-    public final void clientSender(SocketChannel channel){
+    private void clientSender(SocketChannel channel){
         ByteBuffer writeBuffer = ByteBuffer.allocate(1024);
         Thread.currentThread().setName(senderName);
 
@@ -82,9 +82,6 @@ public class Client implements Runnable {
 
                     interactClientsList(false, null);
 
-                    String cl = "Client2";
-
-                    System.out.println(clientsList.contains("Client2"));
                     if ((messageArray.length >= 2) && clientsList.contains(messageArray[0])) {
                         System.out.printf("Me -> %s: %s %n", messageArray[0], messageArray[1]);
 
