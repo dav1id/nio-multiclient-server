@@ -1,4 +1,4 @@
-package main;
+package main.java;
 
 /*
    First-Level: Loops through a list of selectionKeys, identifies the server selection channel and checks if a client

@@ -9,23 +9,23 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="611.0" prefWidth="626.0" style="-fx-background-color: transparent;" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1">
-   <children>
-      <Button id="MessageSend" fx:id="MessageSend" layoutX="570.0" layoutY="540.0" mnemonicParsing="false" text="⌲">
-         <font>
-            <Font size="16.0" />
-         </font></Button>
-      <ScrollPane id="MessageHistory" fx:id="MessageHistory" layoutX="88.0" layoutY="70.0" prefHeight="457.0" prefWidth="528.0">
-         <content>
-            <TextArea id="MessageHistoryTextArea" fx:id="MessageHistoryTextArea" prefHeight="458.0" prefWidth="526.0" />
-         </content></ScrollPane>
-      <ScrollPane id="ClientList" fx:id="ClientList" layoutX="6.0" layoutY="70.0" prefHeight="457.0" prefWidth="75.0">
-         <content>
-            <VBox prefHeight="440.0" prefWidth="75.0" />
-         </content>
-      </ScrollPane>
-      <TextField id="MessageChat" fx:id="MessageChat" layoutX="88.0" layoutY="545.0" prefHeight="26.0" prefWidth="469.0" />
-      <Label layoutX="481.0" layoutY="20.0" prefHeight="17.0" prefWidth="137.0" text="Home:" textAlignment="CENTER" />
-      <Label layoutX="313.0" layoutY="20.0" prefHeight="17.0" prefWidth="137.0" text="Remote: " textAlignment="CENTER" />
-   </children>
+<AnchorPane fx:controller="main.Visuals.Controller" maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="611.0" prefWidth="626.0" style="-fx-background-color: transparent;" xmlns="http://javafx.com/javafx/26" xmlns:fx="http://javafx.com/fxml/1">
+    <children>
+        <Button id="MessageSend" fx:id="MessageSend" layoutX="570.0" layoutY="540.0" mnemonicParsing="false" text="⌲">
+            <font>
+                <Font size="16.0" />
+            </font></Button>
+        <ScrollPane id="MessageHistory" fx:id="MessageHistory" layoutX="88.0" layoutY="70.0" prefHeight="457.0" prefWidth="528.0">
+            <content>
+                <TextArea id="MessageHistoryTextArea" fx:id="MessageHistoryTextArea" prefHeight="458.0" prefWidth="526.0" />
+            </content></ScrollPane>
+        <ScrollPane id="ClientList" fx:id="ClientList" layoutX="6.0" layoutY="70.0" prefHeight="457.0" prefWidth="75.0">
+            <content>
+                <VBox prefHeight="440.0" prefWidth="75.0" />
+            </content>
+        </ScrollPane>
+        <TextField id="MessageChat" fx:id="MessageChat" layoutX="88.0" layoutY="545.0" prefHeight="26.0" prefWidth="469.0" />
+        <Label layoutX="481.0" layoutY="20.0" prefHeight="17.0" prefWidth="137.0" text="Home:" textAlignment="CENTER" />
+        <Label layoutX="313.0" layoutY="20.0" prefHeight="17.0" prefWidth="137.0" text="Remote: " textAlignment="CENTER" />
+    </children>
 </AnchorPane>
