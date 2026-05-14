@@ -9,7 +9,7 @@ public class ServerInit {
                 }
         ).start();
 
-        //DEBUG START
+        // DEBUG START
         Client dummyClient = new Client();
         dummyClient.run();
         //DEBUG END

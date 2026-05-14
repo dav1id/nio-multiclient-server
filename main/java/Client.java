@@ -19,9 +19,10 @@ public class Client extends Application implements Runnable {
     private final String senderName = "sender-thread";
     private final String receiverName = "receiver-thread";
     private final String[] threadPriority = {senderName, receiverName}; // set a thread priority for the receiver and not sender
-    private static String messageContent;
 
-    private Controller controller;
+    private static String messageContent;
+    static boolean messageSet = false;
+
     private Stage applicationStage;
     public static void main(String[] args){
         launch(args);
@@ -47,6 +48,7 @@ public class Client extends Application implements Runnable {
 
     public static void setMessageByController(String message){
         messageContent = message;
+        messageSet = true;
     }
 
 
@@ -81,10 +83,12 @@ public class Client extends Application implements Runnable {
 
     private void clientSender(SocketChannel channel) {
         ByteBuffer writeBuffer = ByteBuffer.allocate(1024);
-        Thread.currentThread().setName(senderName);
 
+        System.out.println("Sender operational?");
         while (channel.isConnected()) {
-            if (messageContent == null) continue;
+            if (!messageSet) continue;
+
+          //  if (messageContent == null) continue;
 
             try {
                 writeBuffer.clear();
@@ -121,10 +125,11 @@ public class Client extends Application implements Runnable {
     public void run(){
         try(final SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(8080))){
             Thread receiverThread = new Thread( () -> clientReceiver(socketChannel));
-            receiverThread.start();
             receiverThread.setName(receiverName);
+            receiverThread.start();
 
             clientSender(socketChannel);
+
         } catch(IOException e){
             System.out.println(e.getMessage());
         }
@@ -133,11 +138,16 @@ public class Client extends Application implements Runnable {
     public void start(Stage stage) throws Exception {
         applicationStage = stage;
 
-        System.out.println(getClass().getResource("/resources/layout.fxml"));
+        try(SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(8080))){
+            ByteBuffer buff = ByteBuffer.allocate(16);
+            if (socketChannel.read(buff) == 1) throw new IOException();
+        } catch(IOException e){
+            throw new Exception("Socket Error: Server socket is not operational....");
+        }
 
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/resources/layout.fxml"));
         Parent root = loader.load();
-        controller = loader.getController();
+        Controller controller = loader.getController();
 
         String css = this.getClass().getResource("/resources/application.css").toExternalForm();
 

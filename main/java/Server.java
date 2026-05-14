@@ -232,7 +232,7 @@ public class Server implements Runnable {
 
                         //DEBUG START
                         if (result == -1) {
-                            System.out.printf("Message from %s cannot be read as the remote channel is closed...", senderName);
+                            System.out.printf("Message from %s cannot be read as the remote channel is closed...\n", senderName);
                             continue;
                         } else if (result == 0) {
                             System.out.printf("No bytes were read from %s...", senderName);
