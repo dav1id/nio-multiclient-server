@@ -1,12 +1,5 @@
 package main.java;
 
-import javafx.application.Application;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.stage.Stage;
-import main.Visuals.Controller;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -14,20 +7,13 @@ import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public class Client extends Application implements Runnable {
+public class Client implements Runnable {
     private final ArrayList<String> clientsList = new ArrayList<>();
-    private final String senderName = "sender-thread";
+
     private final String receiverName = "receiver-thread";
-    private final String[] threadPriority = {senderName, receiverName}; // set a thread priority for the receiver and not sender
 
-    private static String messageContent;
-    static boolean messageSet = false;
-
-    private Stage applicationStage;
-    public static void main(String[] args){
-        launch(args);
-    }
-
+    //Controller
+    private MessageLock messageLock;
 
     /**
      * The sender and receiver threads both call interactClientsList when it's trying to send a message. This makes sure that
@@ -44,13 +30,6 @@ public class Client extends Application implements Runnable {
             clientsList.replaceAll(client -> client.replace(" ", ""));
         }
     }
-
-
-    public static void setMessageByController(String message){
-        messageContent = message;
-        messageSet = true;
-    }
-
 
     private void clientReceiver(SocketChannel channel) {
         ByteBuffer readBuffer = ByteBuffer.allocate(1024);
@@ -86,24 +65,30 @@ public class Client extends Application implements Runnable {
 
         System.out.println("Sender operational?");
         while (channel.isConnected()) {
-            if (!messageSet) continue;
+            String message = "";
+            synchronized(messageLock){
+                try {
+                    messageLock.wait();
+                    message = messageLock.getMessage();
 
-          //  if (messageContent == null) continue;
+                } catch(InterruptedException e){
+                    System.out.println(e.getMessage());
+                }
+            }
 
             try {
                 writeBuffer.clear();
 
-                String[] messageArray = messageContent.split(" ", 2);
+                String[] messageArray = message.split(" ", 2);
 
-                if (messageContent.equals("this close")) break;
+                if (message.equals("this close")) break;
 
                 interactClientsList(false, null);
 
                 if ((messageArray.length >= 2) && clientsList.contains(messageArray[0])) {
                     System.out.printf("Me -> %s: %s %n", messageArray[0], messageArray[1]);
 
-                    byte[] messageBytes = messageContent.getBytes();
-
+                    byte[] messageBytes = message.getBytes();
                     writeBuffer.put(messageBytes);
                     writeBuffer.flip();
 
@@ -122,6 +107,10 @@ public class Client extends Application implements Runnable {
         }
     }
 
+    public void setMessageLock(MessageLock messageLock){
+        this.messageLock = messageLock;
+    }
+
     public void run(){
         try(final SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(8080))){
             Thread receiverThread = new Thread( () -> clientReceiver(socketChannel));
@@ -133,30 +122,5 @@ public class Client extends Application implements Runnable {
         } catch(IOException e){
             System.out.println(e.getMessage());
         }
-    }
-
-    public void start(Stage stage) throws Exception {
-        applicationStage = stage;
-
-        try(SocketChannel socketChannel = SocketChannel.open(new InetSocketAddress(8080))){
-            ByteBuffer buff = ByteBuffer.allocate(16);
-            if (socketChannel.read(buff) == 1) throw new IOException();
-        } catch(IOException e){
-            throw new Exception("Socket Error: Server socket is not operational....");
-        }
-
-        FXMLLoader loader = new FXMLLoader(getClass().getResource("/resources/layout.fxml"));
-        Parent root = loader.load();
-        Controller controller = loader.getController();
-
-        String css = this.getClass().getResource("/resources/application.css").toExternalForm();
-
-        Scene mainScene = new Scene(root);
-        mainScene.getStylesheets().add(css);
-
-        stage.setResizable(false);
-
-        applicationStage.setScene(mainScene);
-        applicationStage.show();
     }
 }
